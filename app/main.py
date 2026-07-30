@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import api, auth, config, db
+from . import api, auth, config, db, jobs
 
 STARTED_AT = dt.datetime.now(dt.timezone.utc)
 
@@ -23,7 +23,9 @@ async def lifespan(application: FastAPI):
         print(f"    username: admin\n    password: {pwd}")
         print(f"    (also written to {config.data_dir() / 'initial-admin-password.txt'})\n")
     auth.purge_expired_sessions()
+    jobs.start()
     yield
+    jobs.stop()
     db.reset_thread_conn()
 
 

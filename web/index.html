@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VM Tracker — Vulnerability Management Console</title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23070b10'/><path d='M6 8h20M6 16h14M6 24h8' stroke='%232fd4c8' stroke-width='3'/></svg>">
+</head>
+<body class="locked">
+
+<div id="progress"></div>
+
+<!-- ================= login ================= -->
+<div id="login">
+  <div class="box">
+    <h1>VM<b>TRACKER</b></h1>
+    <div class="tagline">Vulnerability register, ageing and closure tracking</div>
+    <div class="f">
+      <label for="lu">Username</label>
+      <input id="lu" autocomplete="username" autofocus>
+    </div>
+    <div class="f">
+      <label for="lp">Password</label>
+      <input id="lp" type="password" autocomplete="current-password">
+    </div>
+    <div class="err" id="lerr"></div>
+    <button class="btn primary" id="lgo" style="width:100%">Sign in</button>
+    <div class="hint">
+      First run: the server console prints a generated <code>admin</code> password and writes it to
+      <code>initial-admin-password.txt</code> in the data directory.
+    </div>
+  </div>
+</div>
+
+<!-- ================= app shell ================= -->
+<div id="shell">
+  <aside id="rail">
+    <div class="brand">
+      <div class="mark">VM<b>TRACKER</b></div>
+      <div class="ver" id="verline">v0.9.0</div>
+    </div>
+    <nav id="nav"></nav>
+    <div class="who">
+      <div class="avatar" id="whoAv">–</div>
+      <div>
+        <div id="whoName">—</div>
+        <div class="role" id="whoRole">—</div>
+      </div>
+      <div class="out" id="logout" title="Sign out">⏻</div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="statusbar" id="statusbar"></div>
+    <div class="page" id="view"></div>
+  </main>
+</div>
+
+<div id="toasts"></div>
+<div id="modalHost"></div>
+
+<script src="/static/js/api.js"></script>
+<script src="/static/js/charts.js"></script>
+<script src="/static/js/views.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>

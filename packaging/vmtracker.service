@@ -1,0 +1,29 @@
+# Install:
+#   sudo cp packaging/vmtracker.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now vmtracker
+[Unit]
+Description=VM Tracker vulnerability management console
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vmtracker
+Group=vmtracker
+WorkingDirectory=/opt/vmtracker
+Environment="VM_TRACKER_DATA_DIR=/var/lib/vmtracker"
+Environment="VM_TRACKER_PORT=9797"
+ExecStart=/opt/vmtracker/VMTracker --no-banner
+Restart=on-failure
+RestartSec=5
+
+# hardening — the app only needs its own data directory
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/vmtracker
+
+[Install]
+WantedBy=multi-user.target

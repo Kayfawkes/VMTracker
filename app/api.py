@@ -6,8 +6,9 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
+from fastapi.responses import Response as FileResponseRaw
 
-from . import auth, classify, db, filters as flt, ingest, queries
+from . import auth, classify, db, exports, filters as flt, ingest, jobs, queries
 
 router = APIRouter(prefix="/api")
 
@@ -520,3 +521,54 @@ def get_audit(entity: str | None = None, limit: int = Query(200, le=2000),
         return db.q("SELECT * FROM audit_log WHERE entity=? ORDER BY id DESC LIMIT ?",
                     (entity, limit))
     return db.q("SELECT * FROM audit_log ORDER BY id DESC LIMIT ?", (limit,))
+
+
+# ==========================================================================
+# Exports
+# ==========================================================================
+@router.api_route("/export/{fmt}", methods=["GET", "POST"])
+async def export_view(fmt: str, request: Request, scope: str = "executive",
+                      include_detail: bool = True, user: dict = Depends(auth.current_user)):
+    """Export the current filtered view as csv, xlsx, pdf or pptx."""
+    f = await filters_from_request(request)
+    try:
+        payload, filename, media = exports.export(fmt, f, scope=scope,
+                                                  include_detail=include_detail)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    audit("export", 0, fmt, None, json.dumps(f)[:400], user["username"], source="export")
+    return FileResponseRaw(
+        content=payload, media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                 "X-VMT-Filename": filename},
+    )
+
+
+# ==========================================================================
+# Scheduler / system
+# ==========================================================================
+@router.get("/system/jobs")
+def system_jobs(user: dict = Depends(auth.require("admin"))):
+    return jobs.status()
+
+
+@router.post("/system/jobs/{job_id}/run")
+def run_job_now(job_id: str, user: dict = Depends(auth.require("admin"))):
+    fn = {"aging": jobs.job_aging, "sessions": jobs.job_sessions,
+          "watch": jobs.job_watch, "vacuum": jobs.job_vacuum}.get(job_id)
+    if not fn:
+        raise HTTPException(404, "No such job")
+    jobs.run_job(job_id, fn)
+    return db.q1("SELECT * FROM job_runs WHERE job=? ORDER BY id DESC LIMIT 1", (job_id,))
+
+
+@router.get("/system/summary")
+def system_summary(user: dict = Depends(auth.current_user)):
+    counts = db.q1("SELECT (SELECT COUNT(*) FROM findings) findings, "
+                   "(SELECT COUNT(*) FROM assets) assets, (SELECT COUNT(*) FROM vulns) vulns, "
+                   "(SELECT COUNT(*) FROM scans) scans, "
+                   "(SELECT COUNT(*) FROM class_rules WHERE enabled=1) rules")
+    last = db.q1("SELECT name, scan_date, imported_at, kind FROM scans "
+                 "WHERE status='complete' ORDER BY id DESC LIMIT 1")
+    return {"counts": counts, "last_scan": last,
+            "unclassified": db.q1("SELECT COUNT(*) n FROM vulns WHERE category='Other'")["n"]}
