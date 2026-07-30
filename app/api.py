@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import secrets
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
@@ -91,6 +92,32 @@ def change_password(payload: dict = Body(...), user: dict = Depends(auth.current
     return {"ok": True}
 
 
+@router.post("/users/{user_id}/reset-password")
+def reset_password(user_id: int, payload: dict = Body(default={}),
+                   user: dict = Depends(auth.require("admin"))):
+    """Set a new password for another account. Omit new_password to generate one.
+
+    The user is forced to change it again at their next sign-in.
+    """
+    row = db.q1("SELECT username FROM users WHERE id=?", (user_id,))
+    if not row:
+        raise HTTPException(404, "User not found")
+    generated = None
+    new = str(payload.get("new_password") or "").strip()
+    if not new:
+        generated = "vmt-" + secrets.token_urlsafe(9)
+        new = generated
+    try:
+        auth.set_password(user_id, new, must_change=1)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    db.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))  # sign them out everywhere
+    audit("user", user_id, "password", None, "reset by admin", user["username"])
+    return {"user_id": user_id, "username": row["username"],
+            "generated_password": generated,
+            "note": "The user must change this password at next sign-in."}
+
+
 @router.get("/users")
 def list_users(user: dict = Depends(auth.require("admin"))):
     return db.q("SELECT id,username,full_name,email,role,is_active,must_change,created_at,"
@@ -136,6 +163,36 @@ def update_user(user_id: int, payload: dict = Body(...),
         audit("user", user_id, "password", None, "reset", user["username"])
     return db.q1("SELECT id,username,role,full_name,email,is_active FROM users WHERE id=?",
                  (user_id,))
+
+
+PREF_DEFAULTS = {"ui_scale": 1.0}
+
+
+@router.get("/prefs")
+def get_prefs(user: dict = Depends(auth.current_user)):
+    raw = db.get_setting(f"prefs:{user['id']}")
+    prefs = dict(PREF_DEFAULTS)
+    if raw:
+        try:
+            prefs.update(json.loads(raw))
+        except ValueError:
+            pass
+    return prefs
+
+
+@router.put("/prefs")
+def put_prefs(payload: dict = Body(...), user: dict = Depends(auth.current_user)):
+    prefs = dict(PREF_DEFAULTS)
+    if "ui_scale" in payload:
+        try:
+            scale = float(payload["ui_scale"])
+        except (TypeError, ValueError):
+            raise HTTPException(400, "ui_scale must be a number")
+        if not 0.8 <= scale <= 1.6:
+            raise HTTPException(400, "ui_scale must be between 0.8 and 1.6")
+        prefs["ui_scale"] = round(scale, 2)
+    db.set_setting(f"prefs:{user['id']}", json.dumps(prefs))
+    return prefs
 
 
 # ==========================================================================
@@ -560,6 +617,18 @@ def run_job_now(job_id: str, user: dict = Depends(auth.require("admin"))):
         raise HTTPException(404, "No such job")
     jobs.run_job(job_id, fn)
     return db.q1("SELECT * FROM job_runs WHERE job=? ORDER BY id DESC LIMIT 1", (job_id,))
+
+
+@router.put("/system/watch-folder")
+def set_watch_folder(payload: dict = Body(...), user: dict = Depends(auth.require("admin"))):
+    """Point the auto-import job at a different folder (e.g. a scanner's output share)."""
+    old = db.get_setting(jobs.WATCH_SETTING) or str(jobs.default_watch_dir())
+    try:
+        result = jobs.set_watch_dir(payload.get("path"))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    audit("setting", 0, "watch_folder", old, result["watch_folder"], user["username"])
+    return result
 
 
 @router.get("/system/summary")

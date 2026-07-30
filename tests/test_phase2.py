@@ -4,11 +4,19 @@ import os
 import tempfile
 from pathlib import Path
 
-os.environ.setdefault("VM_TRACKER_DATA_DIR", tempfile.mkdtemp(prefix="vmt2_"))
+import pytest
+from conftest import use_data_dir
 
-import pytest  # noqa: E402
+from app import classify, db, ingest, parsing
 
-from app import classify, db, ingest, parsing  # noqa: E402
+DATA = tempfile.mkdtemp(prefix="vmt2_")
+
+
+@pytest.fixture(autouse=True)
+def _env():
+    use_data_dir(DATA)
+    yield
+    db.reset_thread_conn()
 
 SAMPLES = Path(__file__).resolve().parent.parent / "samples"
 

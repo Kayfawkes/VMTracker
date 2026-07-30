@@ -21,6 +21,7 @@ ROLES = ["viewer", "analyst", "admin"]
 ROLE_LEVEL = {r: i for i, r in enumerate(ROLES)}
 SESSION_COOKIE = "vmt_session"
 SESSION_HOURS = 12
+DEFAULT_ADMIN_PASSWORD = "admin"
 PBKDF2_ROUNDS = 200_000
 
 
@@ -42,16 +43,19 @@ def now() -> dt.datetime:
     return dt.datetime.now()
 
 
+MIN_PASSWORD = 8
+
+
 def create_user(username: str, password: str, role: str = "viewer", full_name: str = "",
-                email: str = "", must_change: int = 0,
+                email: str = "", must_change: int = 0, allow_weak: bool = False,
                 conn: sqlite3.Connection | None = None) -> int:
     c = conn or db.get_conn()
     if role not in ROLES:
         raise ValueError(f"role must be one of {ROLES}")
     if not username or not password:
         raise ValueError("username and password are required")
-    if len(password) < 8:
-        raise ValueError("password must be at least 8 characters")
+    if not allow_weak and len(password) < MIN_PASSWORD:
+        raise ValueError(f"password must be at least {MIN_PASSWORD} characters")
     h, salt = hash_password(password)
     cur = c.execute(
         "INSERT INTO users(username,full_name,email,role,password_hash,salt,is_active,"
@@ -63,13 +67,14 @@ def create_user(username: str, password: str, role: str = "viewer", full_name: s
     return cur.lastrowid
 
 
-def set_password(user_id: int, password: str, conn: sqlite3.Connection | None = None) -> None:
-    if len(password) < 8:
-        raise ValueError("password must be at least 8 characters")
+def set_password(user_id: int, password: str, must_change: int = 0,
+                 conn: sqlite3.Connection | None = None) -> None:
+    if len(password) < MIN_PASSWORD:
+        raise ValueError(f"password must be at least {MIN_PASSWORD} characters")
     c = conn or db.get_conn()
     h, salt = hash_password(password)
-    c.execute("UPDATE users SET password_hash=?, salt=?, must_change=0 WHERE id=?",
-              (h, salt, user_id))
+    c.execute("UPDATE users SET password_hash=?, salt=?, must_change=? WHERE id=?",
+              (h, salt, 1 if must_change else 0, user_id))
     c.commit()
 
 
@@ -78,14 +83,14 @@ def bootstrap_admin(conn: sqlite3.Connection | None = None) -> str | None:
     c = conn or db.get_conn()
     if c.execute("SELECT 1 FROM users LIMIT 1").fetchone():
         return None
-    pwd = os.environ.get("VM_TRACKER_ADMIN_PASSWORD") or ("vmt-" + secrets.token_urlsafe(9))
+    pwd = os.environ.get("VM_TRACKER_ADMIN_PASSWORD") or DEFAULT_ADMIN_PASSWORD
     create_user("admin", pwd, role="admin", full_name="Local Administrator",
-                must_change=1, conn=c)
+                must_change=1, allow_weak=True, conn=c)
     try:
         f = config.data_dir() / "initial-admin-password.txt"
         f.write_text(
             f"VM Tracker initial administrator account\nusername: admin\npassword: {pwd}\n"
-            "Change this password at first login; then delete this file.\n",
+            "You must change this password at first sign-in. Delete this file afterwards.\n",
             encoding="utf-8",
         )
         if os.name != "nt":

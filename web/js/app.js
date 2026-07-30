@@ -17,6 +17,30 @@ const ROUTES = [
   { id: 'admin', label: 'Settings', glyph: '⚙', view: r => V.admin(r) }
 ];
 
+/* ---------- interface scale ---------- */
+const SCALE_STEPS = [0.85, 0.9, 1.0, 1.1, 1.25, 1.4];
+
+function applyScale(scale) {
+  S.uiScale = scale;
+  document.documentElement.style.setProperty('--ui-scale', scale);
+}
+
+async function setScale(scale) {
+  const clamped = Math.min(1.6, Math.max(0.8, scale));
+  applyScale(clamped);
+  try { await API.put('/api/prefs', { ui_scale: clamped }); }
+  catch (e) { toast('Could not save your text size', 'bad'); }
+  const label = $('#scaleLabel');
+  if (label) label.textContent = Math.round(clamped * 100) + '%';
+}
+
+function stepScale(dir) {
+  const i = SCALE_STEPS.reduce((best, v, idx) =>
+    Math.abs(v - S.uiScale) < Math.abs(SCALE_STEPS[best] - S.uiScale) ? idx : best, 0);
+  const next = SCALE_STEPS[Math.min(SCALE_STEPS.length - 1, Math.max(0, i + dir))];
+  setScale(next);
+}
+
 /* ---------- navigation ---------- */
 function buildNav() {
   const nav = $('#nav');
@@ -70,7 +94,14 @@ async function refreshStatus() {
       <span>Last scan <b>${last ? esc(last.scan_date) : 'none loaded'}</b></span>
       ${sum.unclassified ? `<span title="Vulnerabilities the engine could not type">Unclassified <b style="color:var(--amber)">${sum.unclassified}</b></span>` : ''}
       <span class="spacer"></span>
-      <span>${activeFilterCount()} filter${activeFilterCount() === 1 ? '' : 's'} active</span>`;
+      <span>${activeFilterCount()} filter${activeFilterCount() === 1 ? '' : 's'} active</span>
+      <span class="scaler" title="Text size">
+        <b id="scaleDown" role="button" tabindex="0">A&minus;</b>
+        <span id="scaleLabel">${Math.round((S.uiScale || 1) * 100)}%</span>
+        <b id="scaleUp" role="button" tabindex="0">A+</b>
+      </span>`;
+    $('#scaleDown').onclick = () => stepScale(-1);
+    $('#scaleUp').onclick = () => stepScale(1);
     const oc = $('#openCount');
     if (oc) oc.textContent = num(k.open);
   } catch (e) { /* status rail is best-effort */ }
@@ -218,34 +249,49 @@ async function doLogin() {
     const res = await API.post('/api/auth/login', { username: u, password: p, client: navigator.userAgent.slice(0, 80) });
     API.token = res.token;
     S.user = res.user;
+    if (res.user.must_change) { forcePasswordChange(); return; }
     await boot();
-    if (S.user.must_change) promptPasswordChange();
   } catch (e) {
     $('#lerr').textContent = e.message === 'unauthenticated' ? 'Invalid username or password' : e.message;
   }
 }
 
-function promptPasswordChange() {
-  const body = el('div');
-  body.innerHTML = `<div class="form-grid">
-    <div class="full"><label>Current password</label><input id="pc" type="password"></div>
-    <div class="full"><label>New password (minimum 8 characters)</label><input id="pn" type="password"></div>
-  </div>`;
-  const b = el('button', { class: 'btn primary' }, 'Change password');
-  const m = modal({
-    title: 'Change your password',
-    sub: 'This account is still using the password issued at setup.', body, footer: [b]
-  });
-  b.addEventListener('click', async () => {
+/* A must-change account cannot reach the console until the password is replaced.
+   This screen has no way out other than setting a new one. */
+function forcePasswordChange() {
+  $('#login').style.display = 'grid';
+  document.body.classList.add('locked');
+  $('#login .box').innerHTML = `
+    <h1>SET A NEW<b> PASSWORD</b></h1>
+    <div class="tagline">This account is still using the password issued at setup.
+      Choose your own before continuing.</div>
+    <div class="f"><label>Current password</label><input id="pc" type="password" autofocus></div>
+    <div class="f"><label>New password</label><input id="pn" type="password"></div>
+    <div class="f"><label>Repeat new password</label><input id="pn2" type="password"></div>
+    <div class="err" id="perr"></div>
+    <button class="btn primary" id="pgo" style="width:100%">Change password and continue</button>
+    <div class="hint">Minimum 8 characters. Nothing else in the console is reachable
+      until this is done.</div>`;
+
+  const submit = async () => {
+    const cur = $('#pc').value, a = $('#pn').value, b = $('#pn2').value;
+    const err = $('#perr');
+    err.textContent = '';
+    if (a !== b) { err.textContent = 'The two new passwords do not match'; return; }
+    if (a.length < 8) { err.textContent = 'Use at least 8 characters'; return; }
+    if (a === cur) { err.textContent = 'Choose a password different from the current one'; return; }
     try {
-      await API.post('/api/auth/password', {
-        current_password: $('#pc', body).value, new_password: $('#pn', body).value
-      });
-      toast('Password changed');
+      await API.post('/api/auth/password', { current_password: cur, new_password: a });
       S.user.must_change = 0;
-      m.close();
-    } catch (e) { toast(e.message, 'bad'); }
-  });
+      $('#login .box').innerHTML = '';
+      await boot();
+      toast('Password changed');
+    } catch (e) { err.textContent = e.message; }
+  };
+  $('#pgo').addEventListener('click', submit);
+  ['pc', 'pn', 'pn2'].forEach(id => $('#' + id).addEventListener('keydown', e => {
+    if (e.key === 'Enter') submit();
+  }));
 }
 
 /* ---------- boot ---------- */
@@ -261,6 +307,11 @@ async function boot() {
 
   const meta = await API.get('/api/meta');
   $('#verline').textContent = `v${meta.version} · port ${meta.port}`;
+
+  try {
+    const prefs = await API.get('/api/prefs');
+    applyScale(prefs.ui_scale || 1);
+  } catch (e) { applyScale(1); }
 
   S.options = await API.get('/api/filters/options');
   S.route = (location.hash || '#executive').slice(1);
@@ -288,6 +339,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // an existing session cookie means we can skip the login screen
   API.get('/api/auth/me')
-    .then(u => { S.user = u; boot(); })
+    .then(u => { S.user = u; if (u.must_change) forcePasswordChange(); else boot(); })
     .catch(() => showLogin());
 });

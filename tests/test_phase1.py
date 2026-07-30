@@ -3,12 +3,21 @@ import os
 import sqlite3
 import tempfile
 
-os.environ.setdefault("VM_TRACKER_DATA_DIR", tempfile.mkdtemp(prefix="vmt1_"))
+import pytest
+from conftest import use_data_dir
+from fastapi.testclient import TestClient
 
-from fastapi.testclient import TestClient  # noqa: E402
+from app import config, db
+from app.main import app
 
-from app import config, db  # noqa: E402
-from app.main import app  # noqa: E402
+DATA = tempfile.mkdtemp(prefix="vmt1_")
+
+
+@pytest.fixture(autouse=True)
+def _env():
+    use_data_dir(DATA)
+    yield
+    db.reset_thread_conn()
 
 
 def test_data_dir_honours_env_override():

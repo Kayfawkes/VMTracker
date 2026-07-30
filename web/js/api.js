@@ -73,6 +73,7 @@ const S = {
   sla: [],
   summary: null,
   table: { sort: 'severity', direction: 'desc', page: 1, page_size: 100 },
+  uiScale: 1,
   selection: new Set()
 };
 

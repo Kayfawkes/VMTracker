@@ -19,6 +19,7 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 
 PORT = 9799
 PASSWORD = "ui-test-pass-123"
+NEW_PASSWORD = "ui-changed-pass-9"
 
 
 def free_port(port):
@@ -63,6 +64,16 @@ def page(server):
         pg.fill("#lu", "admin")
         pg.fill("#lp", PASSWORD)
         pg.click("#lgo")
+
+        # a first-run account must set its own password before the console opens
+        pg.wait_for_timeout(1500)
+        if pg.query_selector("#pgo"):
+            assert not pg.is_visible("#shell.ready"), "console reachable before password change"
+            pg.fill("#pc", PASSWORD)
+            pg.fill("#pn", NEW_PASSWORD)
+            pg.fill("#pn2", NEW_PASSWORD)
+            pg.click("#pgo")
+
         pg.wait_for_selector("#shell.ready", timeout=20000)
         pg.wait_for_timeout(1500)
         pg.keyboard.press("Escape")
@@ -132,3 +143,48 @@ def test_scorecard_drills_into_register(page):
     page.wait_for_timeout(1600)
     assert page.evaluate("S.route") == "findings"
     assert page.evaluate("Object.keys(S.filters)").count("department") == 1
+
+
+def test_text_size_control_persists(page):
+    """The A+ stepper scales the console and the choice survives a reload."""
+    page.evaluate("go('executive')")
+    page.wait_for_timeout(1200)
+    scale_of = "getComputedStyle(document.documentElement).getPropertyValue('--ui-scale')"
+    page.click("#scaleUp")
+    page.wait_for_timeout(1000)
+    bigger = float(page.evaluate(scale_of).strip() or 1)
+    assert bigger > 1.0
+    page.reload()
+    page.wait_for_selector("#shell.ready", timeout=20000)
+    page.wait_for_timeout(2000)
+    assert float(page.evaluate(scale_of).strip()) == bigger
+    page.evaluate("setScale(1)")
+    page.wait_for_timeout(800)
+
+
+def test_watch_folder_can_be_changed(page, tmp_path):
+    page.evaluate("go('admin')")
+    page.wait_for_timeout(1300)
+    page.click("[data-atab='jobs']")
+    page.wait_for_timeout(1400)
+    target = str(tmp_path / "scanner-share")
+    page.fill("#wfPath", target)
+    page.click("#wfSave")
+    page.wait_for_timeout(2400)
+    assert page.input_value("#wfPath") == target
+
+
+def test_admin_can_reset_a_user_password(page):
+    page.evaluate("go('admin')")
+    page.wait_for_timeout(1300)
+    page.click("[data-atab='users']")
+    page.wait_for_timeout(1300)
+    page.fill("#uName", "resettest")
+    page.fill("#uPass", "initial-pass-1")
+    page.click("#uAdd")
+    page.wait_for_timeout(1800)
+    page.click("[data-resetu]")
+    page.wait_for_timeout(800)
+    page.click(".modal .btn.primary")
+    page.wait_for_timeout(1800)
+    assert "vmt-" in page.inner_text("#rpOut"), "a generated password should be shown once"

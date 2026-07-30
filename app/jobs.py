@@ -13,6 +13,7 @@ from __future__ import annotations
 import datetime as dt
 import shutil
 import traceback
+from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -57,11 +58,42 @@ def job_vacuum() -> str:
     return "database compacted"
 
 
+WATCH_SETTING = "watch_folder"
+
+
+def default_watch_dir():
+    return config.data_dir() / "watch"
+
+
 def watch_dir():
-    p = config.data_dir() / "watch"
-    (p / "processed").mkdir(parents=True, exist_ok=True)
-    (p / "failed").mkdir(parents=True, exist_ok=True)
+    """Operator-configurable drop folder; falls back to <data dir>/watch."""
+    custom = db.get_setting(WATCH_SETTING)
+    p = Path(custom).expanduser() if custom else default_watch_dir()
+    try:
+        (p / "processed").mkdir(parents=True, exist_ok=True)
+        (p / "failed").mkdir(parents=True, exist_ok=True)
+    except OSError:
+        p = default_watch_dir()
+        (p / "processed").mkdir(parents=True, exist_ok=True)
+        (p / "failed").mkdir(parents=True, exist_ok=True)
     return p
+
+
+def set_watch_dir(path: str | None) -> dict:
+    """Validate and store a custom watch folder. Empty resets to the default."""
+    if not path or not str(path).strip():
+        db.execute("DELETE FROM settings WHERE key=?", (WATCH_SETTING,))
+        return {"watch_folder": str(watch_dir()), "custom": False}
+    p = Path(str(path).strip()).expanduser()
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+        probe = p / ".vmtracker-write-test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+    except OSError as exc:
+        raise ValueError(f"Cannot use that folder: {exc}")
+    db.set_setting(WATCH_SETTING, str(p))
+    return {"watch_folder": str(watch_dir()), "custom": True}
 
 
 def job_watch() -> str:
@@ -117,4 +149,6 @@ def status() -> dict:
                          "next_run": j.next_run_time.isoformat() if j.next_run_time else None})
     return {"running": SCHEDULER is not None, "jobs": jobs,
             "watch_folder": str(watch_dir()),
+            "watch_folder_default": str(default_watch_dir()),
+            "watch_folder_custom": bool(db.get_setting(WATCH_SETTING)),
             "recent": db.q("SELECT * FROM job_runs ORDER BY id DESC LIMIT 20")}

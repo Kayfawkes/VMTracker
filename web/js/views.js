@@ -719,7 +719,7 @@ V.admin = async function (root) {
       <div class="sub">Remediation targets, the classification engine, users and background jobs</div></div></div>
     <div class="tabs">
       ${[['sla', 'SLA targets'], ['rules', 'Classification rules'], ['users', 'Users'],
-         ['jobs', 'Background jobs'], ['audit', 'Audit log']]
+         ['jobs', 'Background jobs'], ['display', 'Display'], ['audit', 'Audit log']]
         .map(([k, l]) => `<div class="tab ${tab === k ? 'active' : ''}" data-atab="${k}">${l}</div>`).join('')}
     </div>
     <div id="atab"></div>`;
@@ -731,6 +731,7 @@ V.admin = async function (root) {
   if (tab === 'rules') await adminRules(host);
   if (tab === 'users') await adminUsers(host);
   if (tab === 'jobs') await adminJobs(host);
+  if (tab === 'display') await adminDisplay(host);
   if (tab === 'audit') await adminAudit(host);
 };
 
@@ -878,8 +879,10 @@ async function adminUsers(host) {
           </select></td>
           <td>${u.is_active ? '<span class="pill st-closed">yes</span>' : '<span class="pill st-false_positive">no</span>'}</td>
           <td class="tag">${esc(u.last_login || 'never')}</td>
-          <td><button class="btn sm" data-toggleu="${u.id}" data-on="${u.is_active}">
-            ${u.is_active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('')}</tbody>
+          <td style="white-space:nowrap">
+            <button class="btn sm" data-resetu="${u.id}" data-name="${esc(u.username)}">Reset password</button>
+            <button class="btn sm" data-toggleu="${u.id}" data-on="${u.is_active}">
+              ${u.is_active ? 'Deactivate' : 'Reactivate'}</button></td></tr>`).join('')}</tbody>
       </table></div>
     </div>
   </div>`;
@@ -898,11 +901,96 @@ async function adminUsers(host) {
     await API.patch(`/api/users/${s.dataset.role}`, { role: s.value });
     toast('Role updated');
   }));
+  $$('[data-resetu]', host).forEach(b => b.addEventListener('click', () =>
+    resetPasswordDialog(b.dataset.resetu, b.dataset.name)));
   $$('[data-toggleu]', host).forEach(b => b.addEventListener('click', async () => {
     try {
       await API.patch(`/api/users/${b.dataset.toggleu}`, { is_active: b.dataset.on === '1' ? 0 : 1 });
       render();
     } catch (e) { toast(e.message, 'bad'); }
+  }));
+}
+
+function resetPasswordDialog(userId, username) {
+  const body = el('div');
+  body.innerHTML = `
+    <div class="form-grid">
+      <div class="full"><label>New password</label>
+        <input id="rpNew" type="text" placeholder="leave blank to generate one"></div>
+      <div class="full mono-dim">${esc(username)} will be signed out of every session and
+        must choose a new password at their next sign-in.</div>
+    </div>
+    <div id="rpOut" style="margin-top:12px"></div>`;
+  const go = el('button', { class: 'btn primary' }, 'Reset password');
+  const m = modal({ title: `Reset password — ${username}`,
+    sub: 'Use this when someone is locked out. The change is written to the audit log.',
+    body, footer: [go] });
+  go.addEventListener('click', async () => {
+    go.disabled = true;
+    try {
+      const res = await API.post(`/api/users/${userId}/reset-password`,
+        { new_password: $('#rpNew', body).value.trim() || undefined });
+      if (res.generated_password) {
+        $('#rpOut', body).innerHTML = `<div class="mono-dim">Generated password — copy it now,
+          it is not shown again:</div>
+          <div style="margin-top:6px;padding:9px 11px;background:#0a1016;border:1px solid var(--accent-dim);
+            border-radius:3px;color:var(--accent);font-size:15px;user-select:all">${esc(res.generated_password)}</div>`;
+        go.textContent = 'Done';
+        go.disabled = false;
+        go.onclick = () => { m.close(); render(); };
+      } else {
+        toast(`Password reset for ${username}`);
+        m.close(); render();
+      }
+    } catch (e) { toast(e.message, 'bad'); go.disabled = false; }
+  });
+}
+
+async function adminDisplay(host) {
+  const scale = S.uiScale || 1;
+  host.innerHTML = `<div class="grid">
+    <div class="card span-6">
+      <h3>Text size</h3>
+      <div class="mono-dim" style="margin-bottom:14px">Scales the whole console. Saved against
+        your account, so it follows you to any browser you sign in from.</div>
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+        <input type="range" id="dScale" min="0.8" max="1.6" step="0.05" value="${scale}"
+          style="flex:1;padding:0">
+        <b id="dScaleVal" style="min-width:56px;text-align:right;font-size:17px">${Math.round(scale * 100)}%</b>
+      </div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap">
+        ${[['0.85', 'Compact'], ['1', 'Default'], ['1.1', 'Large'], ['1.25', 'Larger'], ['1.4', 'Largest']]
+          .map(([v, l]) => `<button class="btn sm" data-scale="${v}">${l}</button>`).join('')}
+      </div>
+      <div class="hr"></div>
+      <div class="mono-dim">The A− / A+ control in the top bar does the same thing from any page.</div>
+    </div>
+    <div class="card span-6">
+      <h3>Preview</h3>
+      <div class="kpi" style="margin-bottom:12px">
+        <div class="v">1,284</div><div class="l">Open findings</div>
+        <div class="d">41 hosts affected</div>
+      </div>
+      <table><thead><tr><th>Host</th><th>Vulnerability</th><th>Sev</th><th class="num">Age</th></tr></thead>
+        <tbody>
+          <tr><td>gh-db-014.bank.local</td><td>Oracle Database Multiple Vulnerabilities</td>
+            <td>${sevPill('Critical')}</td><td class="num breached">72d</td></tr>
+          <tr><td>gh-srv-031.bank.local</td><td>Apache HTTP Server 2.4.x &lt; 2.4.58</td>
+            <td>${sevPill('High')}</td><td class="num">21d</td></tr>
+        </tbody></table>
+    </div>
+  </div>`;
+  const slider = $('#dScale', host);
+  slider.addEventListener('input', () => {
+    applyScale(parseFloat(slider.value));
+    $('#dScaleVal', host).textContent = Math.round(slider.value * 100) + '%';
+  });
+  slider.addEventListener('change', () => setScale(parseFloat(slider.value)));
+  $$('[data-scale]', host).forEach(b => b.addEventListener('click', () => {
+    const v = parseFloat(b.dataset.scale);
+    slider.value = v;
+    $('#dScaleVal', host).textContent = Math.round(v * 100) + '%';
+    setScale(v);
   }));
 }
 
@@ -920,8 +1008,19 @@ async function adminJobs(host) {
       <div class="hr"></div>
       <h3>Watch folder</h3>
       <div class="mono-dim">Drop scan exports here and they are imported within 5 minutes.
-        Files whose name contains "mitig" or "remedi" are treated as mitigation evidence.</div>
-      <div style="margin-top:8px;color:var(--accent);font-size:11px;word-break:break-all">${esc(st.watch_folder)}</div>
+        Files whose name contains "mitig" or "remedi" are treated as mitigation evidence.
+        Point this at a scanner's output share to make weekly imports hands-free.</div>
+      <div style="margin-top:10px">
+        <label>Folder path${st.watch_folder_custom ? '' : ' (currently the default)'}</label>
+        <input id="wfPath" value="${esc(st.watch_folder)}" style="width:100%"
+          placeholder="${esc(st.watch_folder_default)}">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn primary" id="wfSave">Save folder</button>
+        <button class="btn" id="wfReset" ${st.watch_folder_custom ? '' : 'disabled'}>Use default</button>
+      </div>
+      <div class="mono-dim" style="margin-top:8px">Default: ${esc(st.watch_folder_default)}</div>
+      <div id="wfOut" style="margin-top:8px"></div>
     </div>
     <div class="card span-7">
       <h3>Recent job runs</h3>
@@ -935,6 +1034,20 @@ async function adminJobs(host) {
       </table></div>
     </div>
   </div>`;
+  const saveWatch = async (path) => {
+    const out = $('#wfOut', host);
+    try {
+      const res = await API.put('/api/system/watch-folder', { path });
+      out.innerHTML = `<span style="color:var(--ok)">Watch folder set to ${esc(res.watch_folder)}</span>`;
+      toast('Watch folder updated');
+      setTimeout(render, 700);
+    } catch (e) {
+      out.innerHTML = `<span style="color:var(--crit)">${esc(e.message)}</span>`;
+    }
+  };
+  $('#wfSave', host).addEventListener('click', () => saveWatch($('#wfPath', host).value.trim()));
+  $('#wfReset', host).addEventListener('click', () => saveWatch(''));
+
   $$('[data-run]', host).forEach(b => b.addEventListener('click', async () => {
     b.disabled = true;
     const res = await API.post(`/api/system/jobs/${b.dataset.run}/run`, {});

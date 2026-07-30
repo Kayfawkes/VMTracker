@@ -14,9 +14,12 @@ python -m pip install -r requirements.txt
 python run.py                       # http://127.0.0.1:9797
 ```
 
-The first start prints a generated `admin` password and writes it to
-`initial-admin-password.txt` in the data directory. Sign in, change it when
-prompted, then load a scan from **Scan imports**.
+Sign in with **`admin` / `admin`**. The console then requires you to set your own
+password before anything else is reachable — no page, export or API call works
+until you do. After that, load a scan from **Scan imports**.
+
+To choose a different bootstrap password, set `VM_TRACKER_ADMIN_PASSWORD` before
+the very first start; it still forces a change at first sign-in.
 
 To try it with the bundled synthetic bank data, import in this order from the
 console: `samples/scan_week1.csv`, then `samples/scan_week2.csv`, then
@@ -26,7 +29,7 @@ evidence". Regenerate the samples any time with `python samples/gen_samples.py`.
 ## Tests
 
 ```bash
-python -m pytest tests -q                    # 80 tests
+python -m pytest tests -q                    # 101 tests
 python -m pytest tests -q -k "not test_ui"   # skip the browser tests
 ```
 
@@ -42,7 +45,7 @@ The UI tests drive a real headless browser. They skip themselves unless you have
 | **Department / Application / System owner / Environment / Vulnerability type** | Five grouped dashboards, each with a scorecard, a group × type heat matrix, ageing table and trend. Click a scorecard row to drill into the register for that group. |
 | **Hosts & ownership** | Edit hostname, department, application, owner, environment, criticality, location. Edits are pinned so scan imports never overwrite them. Bulk-assign ownership across a filter. |
 | **Scan imports** | Drop a file, preview the column mapping, then import. Full import history showing what each scan opened, reopened and closed. |
-| **Settings** | SLA targets per severity, the classification rule engine, user accounts, background jobs, and the audit log. |
+| **Settings** | SLA targets per severity, the classification rule engine, user accounts and password resets, background jobs and the watch folder, display/text size, and the audit log. |
 
 Every page carries the same filter bar, and every export reflects whatever filter
 is applied. Filter sets can be saved and reloaded by name.
@@ -55,9 +58,9 @@ is applied. Filter sets can be saved and reloaded by name.
 | Data dir (macOS/Linux) | `~/.VM Tracker` |
 | Override | `VM_TRACKER_DATA_DIR` (the literal `VM Tracker_DATA_DIR` is also honoured) |
 | Database | `<data dir>/vmtracker.db` (SQLite, WAL) |
-| Watch folder | `<data dir>/watch` |
+| Watch folder | `<data dir>/watch` by default; changeable in **Settings → Background jobs** |
 | Port / host | `9797` / `0.0.0.0` — override with `VM_TRACKER_PORT`, `VM_TRACKER_HOST` |
-| Admin password (first run) | `VM_TRACKER_ADMIN_PASSWORD` |
+| Admin password (first run) | `admin`, or set `VM_TRACKER_ADMIN_PASSWORD` |
 
 Reachable from other machines at `http://<server-ip>:9797/`. Open the port first:
 
@@ -75,8 +78,20 @@ Interactive API docs: `http://127.0.0.1:9797/api/docs`
 | `analyst` | the above, plus import scans and edit findings and ownership |
 | `admin` | the above, plus manage users, SLA targets, classification rules and jobs |
 
-Passwords are PBKDF2-SHA256, 200,000 rounds. Sessions last 12 hours; the browser
-uses a cookie, API and mobile clients send `X-VMT-Token`.
+Passwords are PBKDF2-SHA256, 200,000 rounds, minimum 8 characters. Sessions last
+12 hours; the browser uses a cookie, API and mobile clients send `X-VMT-Token`.
+
+**Resetting a password.** In **Settings → Users**, *Reset password* against any
+account either takes a password you type or generates one and shows it once. The
+account is signed out of every session and must choose its own password at the
+next sign-in. The reset is written to the audit log against your username.
+
+If you lock yourself out of the only admin account, reset it from a shell with the
+server stopped:
+
+```bash
+python -c "from app import db, auth; db.init_db(); u=db.q1(\"SELECT id FROM users WHERE username='admin'\"); auth.set_password(u['id'],'NewPassword123', must_change=1)"
+```
 
 ## Data model
 
@@ -147,6 +162,14 @@ database, so no code change or restart is needed.
 register and writes the change to the audit log. Breach rate, per-severity
 "within SLA %", MTTR and the SLA gauges all follow from these numbers.
 
+## Display
+
+The console defaults to a comfortable size, and each person can scale it to taste:
+the **A− / A+** control sits in the top status bar on every page, and
+**Settings → Display** has a slider with presets and a live preview. The setting is
+stored against your account rather than the browser, so it follows you to any
+machine you sign in from. Range is 80% to 160%.
+
 ## Exports
 
 Any filtered view exports to **Excel**, **PDF**, **PowerPoint** or **CSV** from the
@@ -174,6 +197,13 @@ The watch folder suits a scheduled scanner export: drop the file in and it is
 ingested, logged and moved to `watch/processed` (or `watch/failed` with the reason).
 Files whose name contains "mitig" or "remedi" are treated as mitigation evidence.
 Run any job on demand from **Settings → Background jobs**.
+
+**Pointing it somewhere else.** Set any path in **Settings → Background jobs** — a
+network share the scanner writes to, for example — and imports become hands-free.
+The path is validated for write access before being saved, stored in the database
+so it survives restarts, and the change is audited. Clear it to return to the
+default. On Windows a UNC path works (`\\fileserver\scans\weekly`) as long as the
+account running the service can write to it.
 
 ## Packaging
 

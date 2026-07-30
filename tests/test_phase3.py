@@ -3,21 +3,26 @@ import os
 import tempfile
 from pathlib import Path
 
+import pytest
+from conftest import use_data_dir
+from fastapi.testclient import TestClient
+
+from app import auth, db, ingest, queries
+from app.main import app
+
 DATA = tempfile.mkdtemp(prefix="vmt3_")
-os.environ["VM_TRACKER_DATA_DIR"] = DATA
-os.environ["VM_TRACKER_ADMIN_PASSWORD"] = "admin-pass-123"
-
-import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-
-from app import auth, db, ingest, queries  # noqa: E402
-from app.main import app  # noqa: E402
-
 SAMPLES = Path(__file__).resolve().parent.parent / "samples"
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _env():
+    use_data_dir(DATA, "admin-pass-123")
+    yield
+    db.reset_thread_conn()
+
+
 @pytest.fixture(scope="module")
-def client():
+def client(_env):
     with TestClient(app) as c:
         conn = db.get_conn()
         if not db.q1("SELECT COUNT(*) n FROM findings", conn=conn)["n"]:
