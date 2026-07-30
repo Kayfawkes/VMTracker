@@ -1,0 +1,46 @@
+Host,Department,Application,System Owner,Owner Email,Environment,Asset Criticality
+gh-srv-001.bank.local,Risk & Compliance,Data Warehouse,J. Bello,bello@bank.com.gh,Production,Critical
+gh-srv-002.bank.local,Risk & Compliance,Core Banking,T. Owusu,owusu@bank.com.gh,Production,Critical
+gh-srv-003.bank.local,HR,Internet Banking,K. Boateng,boateng@bank.com.gh,Production,Low
+gh-srv-004.bank.local,Retail Banking,Intranet,A. Mensah,mensah@bank.com.gh,Production,Low
+gh-db-005.bank.local,HR,SWIFT Gateway,A. Mensah,mensah@bank.com.gh,Development,High
+gh-srv-006.bank.local,HR,ATM Switch,A. Mensah,mensah@bank.com.gh,Development,High
+gh-srv-007.bank.local,Corporate Banking,Intranet,J. Bello,bello@bank.com.gh,Production,High
+gh-srv-008.bank.local,Corporate Banking,Core Banking,T. Owusu,owusu@bank.com.gh,Production,Medium
+gh-srv-009.bank.local,Risk & Compliance,Intranet,S. Adeyemi,adeyemi@bank.com.gh,Production,High
+gh-db-010.bank.local,Treasury,SWIFT Gateway,A. Mensah,mensah@bank.com.gh,Development,High
+gh-srv-011.bank.local,Risk & Compliance,Email,N. Okafor,okafor@bank.com.gh,Development,Critical
+gh-srv-012.bank.local,HR,HR Portal,K. Boateng,boateng@bank.com.gh,UAT,Medium
+gh-srv-013.bank.local,Corporate Banking,ATM Switch,T. Owusu,owusu@bank.com.gh,Production,High
+gh-srv-014.bank.local,Finance,Email,A. Mensah,mensah@bank.com.gh,Production,High
+gh-db-015.bank.local,Corporate Banking,Card Management,J. Bello,bello@bank.com.gh,Development,Medium
+gh-srv-016.bank.local,HR,HR Portal,A. Mensah,mensah@bank.com.gh,UAT,High
+gh-srv-017.bank.local,Corporate Banking,Core Banking,K. Boateng,boateng@bank.com.gh,Production,High
+gh-srv-018.bank.local,HR,Email,A. Mensah,mensah@bank.com.gh,Production,Medium
+gh-srv-019.bank.local,Digital Channels,Data Warehouse,F. Danso,danso@bank.com.gh,Development,High
+gh-db-020.bank.local,Risk & Compliance,Data Warehouse,K. Boateng,boateng@bank.com.gh,Production,Critical
+gh-srv-021.bank.local,Treasury,SWIFT Gateway,A. Mensah,mensah@bank.com.gh,UAT,Low
+gh-srv-022.bank.local,Digital Channels,Core Banking,K. Boateng,boateng@bank.com.gh,UAT,Low
+gh-srv-023.bank.local,Risk & Compliance,ATM Switch,T. Owusu,owusu@bank.com.gh,Production,Medium
+gh-srv-024.bank.local,HR,Data Warehouse,A. Mensah,mensah@bank.com.gh,UAT,Medium
+gh-db-025.bank.local,IT Operations,SWIFT Gateway,S. Adeyemi,adeyemi@bank.com.gh,Production,Critical
+gh-srv-026.bank.local,Retail Banking,Core Banking,T. Owusu,owusu@bank.com.gh,Production,Low
+gh-srv-027.bank.local,Risk & Compliance,Core Banking,A. Mensah,mensah@bank.com.gh,Production,Low
+gh-srv-028.bank.local,Treasury,Card Management,N. Okafor,okafor@bank.com.gh,Development,High
+gh-srv-029.bank.local,Corporate Banking,Email,S. Adeyemi,adeyemi@bank.com.gh,UAT,Medium
+gh-db-030.bank.local,Corporate Banking,Internet Banking,J. Bello,bello@bank.com.gh,Production,High
+gh-srv-031.bank.local,Treasury,Core Banking,K. Boateng,boateng@bank.com.gh,Development,High
+gh-srv-032.bank.local,Retail Banking,ATM Switch,N. Okafor,okafor@bank.com.gh,Production,High
+gh-srv-033.bank.local,Treasury,SWIFT Gateway,T. Owusu,owusu@bank.com.gh,Development,Low
+gh-srv-034.bank.local,IT Operations,SWIFT Gateway,F. Danso,danso@bank.com.gh,Production,Medium
+gh-db-035.bank.local,IT Operations,Email,N. Okafor,okafor@bank.com.gh,Production,Critical
+gh-srv-036.bank.local,Finance,SWIFT Gateway,J. Bello,bello@bank.com.gh,Development,High
+gh-srv-037.bank.local,Risk & Compliance,Internet Banking,K. Boateng,boateng@bank.com.gh,Production,High
+gh-srv-038.bank.local,IT Operations,SWIFT Gateway,S. Adeyemi,adeyemi@bank.com.gh,Development,Low
+gh-srv-039.bank.local,Finance,HR Portal,F. Danso,danso@bank.com.gh,Production,Critical
+gh-db-040.bank.local,IT Operations,Mobile Banking,S. Adeyemi,adeyemi@bank.com.gh,Production,Critical
+gh-srv-041.bank.local,Finance,Internet Banking,J. Bello,bello@bank.com.gh,Production,High
+gh-srv-042.bank.local,Retail Banking,Intranet,S. Adeyemi,adeyemi@bank.com.gh,Production,Low
+gh-srv-043.bank.local,Risk & Compliance,ATM Switch,T. Owusu,owusu@bank.com.gh,Production,Critical
+gh-srv-044.bank.local,Corporate Banking,Mobile Banking,S. Adeyemi,adeyemi@bank.com.gh,Production,High
+gh-db-045.bank.local,Digital Channels,Card Management,T. Owusu,owusu@bank.com.gh,Production,Low

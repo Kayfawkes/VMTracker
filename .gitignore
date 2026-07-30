@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build artefacts (PyInstaller / Inno Setup)
+build/
+dist/
+*.spec.bak
+Output/
+*.exe
+
+# Local data — never commit: contains scan findings and credentials
+*.db
+*.db-wal
+*.db-shm
+initial-admin-password.txt
+data/
+exports/
+uploads/
+logs/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Flutter (phase 7 Android client)
+android_client/.dart_tool/
+android_client/build/
+android_client/.flutter-plugins*
