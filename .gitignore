@@ -15,6 +15,7 @@ dist/
 *.spec.bak
 Output/
 *.exe
+!packaging/*.ico
 
 # Local data — never commit: contains scan findings and credentials
 *.db

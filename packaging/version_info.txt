@@ -1,0 +1,31 @@
+# Windows version resource for VMTracker.exe.
+# Shows up under right-click -> Properties -> Details, and in SmartScreen prompts.
+# Keep the four-part numbers in step with VERSION in app/config.py.
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(0, 9, 0, 0),
+    prodvers=(0, 9, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        '040904B0',
+        [StringStruct('CompanyName', 'Vulnerability Management'),
+         StringStruct('FileDescription', 'VM Tracker - vulnerability register and closure tracking'),
+         StringStruct('FileVersion', '0.9.0.0'),
+         StringStruct('InternalName', 'VMTracker'),
+         StringStruct('LegalCopyright', ''),
+         StringStruct('OriginalFilename', 'VMTracker.exe'),
+         StringStruct('ProductName', 'VM Tracker'),
+         StringStruct('ProductVersion', '0.9.0.0')]
+      )
+    ]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)

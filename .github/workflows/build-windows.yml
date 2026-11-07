@@ -1,0 +1,109 @@
+name: Build Windows executable
+
+# Builds VMTracker.exe on a real Windows runner. Useful because the build cannot
+# be done from macOS or Linux: PyInstaller freezes for the OS it runs on.
+#
+#   - every push and pull request: build and smoke-test, keep the exe for 14 days
+#   - a tag like v0.9.0: also build the installer and attach both to a release
+#
+# Download a build from the run's "Artifacts" section on the Actions tab.
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      onefile:
+        description: 'Build a single-file exe instead of a folder'
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Run tests
+        run: python -m pytest tests -q -k "not test_ui"
+
+      - name: Build executable
+        env:
+          ONEFILE: ${{ inputs.onefile && '1' || '' }}
+        run: python -m PyInstaller packaging/vmtracker.spec --noconfirm --log-level WARN
+
+      - name: Smoke-test the built executable
+        shell: pwsh
+        run: |
+          $exe = if ($env:ONEFILE -eq '1') { 'dist\VMTracker.exe' } else { 'dist\VMTracker\VMTracker.exe' }
+          if (-not (Test-Path $exe)) { throw "Build produced no executable at $exe" }
+
+          $env:VM_TRACKER_DATA_DIR = Join-Path $env:RUNNER_TEMP 'vmt-smoke'
+          $proc = Start-Process $exe -ArgumentList '--port','9791','--no-banner' -PassThru -WindowStyle Hidden
+
+          $ready = $false
+          foreach ($i in 1..40) {
+            Start-Sleep -Milliseconds 750
+            if ($proc.HasExited) { throw "The exe exited early with code $($proc.ExitCode)" }
+            try {
+              if ((Invoke-WebRequest 'http://127.0.0.1:9791/api/health' -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200) {
+                $ready = $true; break
+              }
+            } catch { }
+          }
+          if (-not $ready) { throw 'The exe never answered on port 9791' }
+
+          # the console and its assets must be bundled, not just the API
+          foreach ($path in @('/', '/static/app.css', '/static/js/app.js')) {
+            $r = Invoke-WebRequest "http://127.0.0.1:9791$path" -UseBasicParsing
+            if ($r.StatusCode -ne 200) { throw "$path returned $($r.StatusCode)" }
+          }
+          Stop-Process -Id $proc.Id -Force
+          Write-Host 'Smoke test passed: API healthy, console and assets served.'
+        env:
+          ONEFILE: ${{ inputs.onefile && '1' || '' }}
+
+      - name: Build installer
+        if: ${{ !inputs.onefile }}
+        run: |
+          choco install innosetup --no-progress -y
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\installer.iss
+        shell: pwsh
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: VMTracker-windows
+          path: dist/
+          retention-days: 14
+
+      - name: Upload installer
+        if: ${{ !inputs.onefile }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: VMTracker-installer
+          path: packaging/Output/*.exe
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            packaging/Output/*.exe
+          generate_release_notes: true

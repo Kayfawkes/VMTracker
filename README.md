@@ -207,16 +207,50 @@ account running the service can write to it.
 
 ## Packaging
 
-**Windows** (executable + installer; needs Inno Setup 6 on PATH):
+**Windows.** Run this on the Windows machine itself — PyInstaller freezes for the
+OS it runs on, so a Windows .exe cannot be built from macOS or Linux:
 
 ```
 packaging\build_windows.bat
 ```
 
-Produces `dist\VMTracker\VMTracker.exe` and
-`packaging\Output\VMTracker-Setup-0.9.0.exe`. The installer offers a desktop
-shortcut, a firewall rule for TCP 9797, and optional start-at-boot. Uninstalling
-leaves your data directory intact.
+Double-clicking it works too. It needs only Python 3.11+ installed; everything
+else is fetched into a throwaway virtual environment under `build\.venv`, so
+nothing lands in your system Python. The script finds Python (via the `py`
+launcher or PATH), installs dependencies, runs the tests, builds the exe, then
+**starts the built exe and checks it actually serves the console** before
+declaring success. Output: `dist\VMTracker\VMTracker.exe`.
+
+Switches pass straight through the `.bat` to `build_windows.ps1`:
+
+| Switch | Effect |
+|---|---|
+| `-OneFile` | One `VMTracker.exe` instead of a folder. Easy to copy, but it unpacks to a temp folder on every start, so it launches slower — prefer the folder build for a server. |
+| `-Installer` | Also build the Inno Setup installer (looks in the usual install locations, not just PATH). |
+| `-SkipTests` | Skip the test suite. |
+| `-NoSmokeTest` | Skip launching the built exe to verify it. |
+| `-Clean` | Delete `build\`, `dist\`, `packaging\Output\` and the venv first. |
+| `-Python <path>` | Use a specific `python.exe`. |
+
+```
+packaging\build_windows.bat -Installer          ' exe + installer
+packaging\build_windows.bat -OneFile -SkipTests ' quick single-file build
+```
+
+With `-Installer` you also get `packaging\Output\VMTracker-Setup-0.9.0.exe`,
+which offers a desktop shortcut, a firewall rule for TCP 9797, and optional
+start-at-boot. Uninstalling leaves your data directory intact.
+
+Two things worth knowing. For the folder build, ship the **whole**
+`dist\VMTracker` folder — the exe alone will not run. And the binary is
+unsigned, so SmartScreen shows a "Windows protected your PC" prompt on first run;
+*More info → Run anyway*, or sign it with your organisation's code-signing
+certificate (`signtool sign /fd SHA256 /a dist\VMTracker\VMTracker.exe`).
+
+**Building without a Windows machine.** `.github/workflows/build-windows.yml`
+builds and smoke-tests the exe on a GitHub-hosted Windows runner on every push;
+download it from the run's Artifacts section. Push a `v*` tag and it also builds
+the installer and attaches it to a GitHub release.
 
 **macOS / Linux**:
 
@@ -246,7 +280,9 @@ app/exports.py    XLSX / CSV / PDF / PPTX builders
 app/jobs.py       APScheduler jobs + watch folder
 app/api.py        REST API
 web/              operator console (HTML, CSS, four JS files, no build step)
-packaging/        PyInstaller spec, Inno Setup script, build scripts, systemd unit
+packaging/        PyInstaller spec, icon, Windows build script, Inno Setup script,
+                  build scripts, systemd unit
+.github/          GitHub Actions workflow that builds the Windows exe
 android_client/   optional Flutter client
 samples/          synthetic demo data + generator
 tests/            per-phase smoke tests + browser tests

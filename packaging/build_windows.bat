@@ -1,40 +1,28 @@
 @echo off
 REM ===========================================================================
-REM  Build VM Tracker for Windows: executable + installer
-REM  Prerequisites: Python 3.11+, Inno Setup 6 (iscc.exe on PATH)
+REM  VM Tracker - build VMTracker.exe on Windows
+REM
+REM  Double-click this file, or run it from a command prompt. All the work is
+REM  done by build_windows.ps1; this wrapper exists so you do not have to think
+REM  about PowerShell's execution policy, which blocks downloaded .ps1 files by
+REM  default. -ExecutionPolicy Bypass applies to this one run only and changes
+REM  nothing on the machine.
+REM
+REM  Pass any of the script's switches straight through, for example:
+REM      build_windows.bat -OneFile -Installer
+REM      build_windows.bat -SkipTests
+REM      build_windows.bat -Clean
 REM ===========================================================================
 setlocal
-cd /d "%~dp0\.."
 
-echo [1/4] Installing dependencies...
-python -m pip install --upgrade pip >nul
-python -m pip install -r requirements.txt pyinstaller || goto :fail
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0build_windows.ps1" %*
+set RC=%ERRORLEVEL%
 
-echo [2/4] Running tests...
-python -m pytest tests -q || goto :fail
-
-echo [3/4] Building executable...
-rmdir /s /q build dist 2>nul
-python -m PyInstaller packaging\vmtracker.spec --noconfirm || goto :fail
-
-echo [4/4] Building installer...
-where iscc >nul 2>nul
-if errorlevel 1 (
-  echo   Inno Setup ^(iscc.exe^) not found on PATH - skipping installer.
-  echo   Portable build is ready in dist\VMTracker\
-  goto :done
+REM Keep the window open when double-clicked, so the result stays readable.
+echo %CMDCMDLINE% | find /i "/c" >nul
+if not errorlevel 1 (
+  echo.
+  pause
 )
-iscc packaging\installer.iss || goto :fail
-echo   Installer written to packaging\Output\
 
-:done
-echo.
-echo Build complete.
-echo   Portable : dist\VMTracker\VMTracker.exe
-echo   Installer: packaging\Output\
-exit /b 0
-
-:fail
-echo.
-echo BUILD FAILED - see the output above.
-exit /b 1
+exit /b %RC%

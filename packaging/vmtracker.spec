@@ -55,6 +55,10 @@ pyz = PYZ(a.pure, a.zipped_data)
 icon = ROOT / "packaging" / "vmtracker.ico"
 icon_arg = str(icon) if icon.exists() else None
 
+# Version resource is a Windows-only PE feature; PyInstaller ignores it elsewhere.
+vinfo = ROOT / "packaging" / "version_info.txt"
+version_arg = str(vinfo) if (sys.platform == "win32" and vinfo.exists()) else None
+
 if ONEFILE:
     exe = EXE(
         pyz, a.scripts, a.binaries, a.zipfiles, a.datas, [],
@@ -62,6 +66,7 @@ if ONEFILE:
         console=True,
         upx=False,
         icon=icon_arg,
+        version=version_arg,
     )
 else:
     exe = EXE(
@@ -71,6 +76,7 @@ else:
         console=True,
         upx=False,
         icon=icon_arg,
+        version=version_arg,
     )
     coll = COLLECT(
         exe, a.binaries, a.zipfiles, a.datas,
