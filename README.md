@@ -33,6 +33,9 @@ python -m pytest tests -q                    # 101 tests
 python -m pytest tests -q -k "not test_ui"   # skip the browser tests
 ```
 
+`pytest.ini` puts the project root on `sys.path`, so the tests run from any
+working directory, not only from the root.
+
 The UI tests drive a real headless browser. They skip themselves unless you have
 `pip install playwright && python -m playwright install chromium`.
 
@@ -279,6 +282,7 @@ app/queries.py    dashboard aggregations
 app/exports.py    XLSX / CSV / PDF / PPTX builders
 app/jobs.py       APScheduler jobs + watch folder
 app/api.py        REST API
+pytest.ini        test config (project root on sys.path)
 web/              operator console (HTML, CSS, four JS files, no build step)
 packaging/        PyInstaller spec, icon, Windows build script, Inno Setup script,
                   build scripts, systemd unit

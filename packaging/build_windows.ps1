@@ -68,6 +68,7 @@ function Ok   ($msg) { Write-Host "      $msg" -ForegroundColor Green }
 function Info ($msg) { Write-Host "      $msg" -ForegroundColor DarkGray }
 function Warn ($msg) { Write-Host "      $msg" -ForegroundColor Yellow }
 function Die  ($msg, $hint) {
+    if ($script:Pushed) { Pop-Location; $script:Pushed = $false }
     Write-Host ''
     Write-Host "BUILD FAILED" -ForegroundColor Red
     Write-Host "  $msg" -ForegroundColor Red
@@ -85,6 +86,11 @@ if (-not $onWindows) {
 Write-Host ''
 Write-Host '  VM TRACKER - Windows build' -ForegroundColor White
 Write-Host "  $Root" -ForegroundColor DarkGray
+
+# Every later step resolves paths against the project root, so move there once
+# rather than relying on where the script happened to be launched from.
+Push-Location $Root
+$script:Pushed = $true
 
 $total = 6
 if ($Installer) { $total = 7 }
@@ -196,7 +202,7 @@ if ($SkipTests) {
     & $VenvPy -m pytest (Join-Path $Root 'tests') -q -k "not test_ui"
     if ($LASTEXITCODE -ne 0) {
         Die "Tests failed - not packaging a broken build." `
-            "Run '$VenvPy -m pytest tests -v -k `"not test_ui`"' to see which."
+            "Re-run them from $Root with: build\.venv\Scripts\python.exe -m pytest tests -v -k `"not test_ui`""
     }
     Ok 'tests passed'
 }
@@ -210,12 +216,10 @@ if (Test-Path (Join-Path $BuildDir 'VMTracker')) {
 
 if ($OneFile) { $env:ONEFILE = '1' } else { Remove-Item Env:\ONEFILE -ErrorAction SilentlyContinue }
 try {
-    Push-Location $Root
     & $VenvPy -m PyInstaller (Join-Path $Root 'packaging\vmtracker.spec') `
         --noconfirm --distpath $DistDir --workpath (Join-Path $BuildDir 'pyi') --log-level WARN
     $rc = $LASTEXITCODE
 } finally {
-    Pop-Location
     Remove-Item Env:\ONEFILE -ErrorAction SilentlyContinue
 }
 if ($rc -ne 0) { Die "PyInstaller failed." "Scroll up for the first error; a missing hidden import is the usual cause." }
@@ -311,6 +315,7 @@ if ($Installer) {
 }
 
 # ---------------------------------------------------------------- done
+if ($script:Pushed) { Pop-Location; $script:Pushed = $false }
 $elapsed = [math]::Round(((Get-Date) - $started).TotalSeconds)
 Write-Host ''
 Write-Host "  Build complete in ${elapsed}s" -ForegroundColor Green
