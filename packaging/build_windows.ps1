@@ -209,9 +209,14 @@ if ($SkipTests) {
 
 # ---------------------------------------------------------------- 5. build
 Step 5 $total "Building the executable ($(if ($OneFile) {'single file'} else {'folder'}))"
-if (Test-Path $DistDir)  { Remove-Item $DistDir  -Recurse -Force }
-if (Test-Path (Join-Path $BuildDir 'VMTracker')) {
-    Remove-Item (Join-Path $BuildDir 'VMTracker') -Recurse -Force
+try {
+    if (Test-Path $DistDir) { Remove-Item $DistDir -Recurse -Force -ErrorAction Stop }
+    if (Test-Path (Join-Path $BuildDir 'VMTracker')) {
+        Remove-Item (Join-Path $BuildDir 'VMTracker') -Recurse -Force -ErrorAction Stop
+    }
+} catch {
+    Die "Could not clear the previous build output: $($_.Exception.Message)" `
+        "A running VMTracker.exe, or an open Explorer window in dist\, will hold those files. Close it and re-run."
 }
 
 if ($OneFile) { $env:ONEFILE = '1' } else { Remove-Item Env:\ONEFILE -ErrorAction SilentlyContinue }
@@ -249,7 +254,7 @@ if ($NoSmokeTest) {
         # the child inherits this process's environment, which works on 5.1 too
         $env:VM_TRACKER_DATA_DIR = $SmokeData
         $proc = Start-Process -FilePath $ExePath `
-            -ArgumentList '--port', $SmokePort, '--no-banner' `
+            -ArgumentList '--host', '127.0.0.1', '--port', $SmokePort, '--no-banner' `
             -PassThru -WindowStyle Hidden
 
         $ready = $false

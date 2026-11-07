@@ -90,7 +90,8 @@ def set_watch_dir(path: str | None) -> dict:
         probe = p / ".vmtracker-write-test"
         probe.write_text("ok", encoding="utf-8")
         probe.unlink()
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
+        # ValueError covers paths the OS rejects outright, e.g. embedded nulls
         raise ValueError(f"Cannot use that folder: {exc}")
     db.set_setting(WATCH_SETTING, str(p))
     return {"watch_folder": str(watch_dir()), "custom": True}

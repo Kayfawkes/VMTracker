@@ -166,12 +166,25 @@ def test_watch_folder_survives_restart(client):
     assert saved and str(jobs.watch_dir()) == saved
 
 
-def test_unwritable_watch_folder_rejected_with_reason(client):
+def test_unwritable_watch_folder_rejected_with_reason(client, tmp_path):
+    """A path that cannot be created comes back as 400 with the OS reason.
+
+    The unusable path is a directory *underneath an existing file*, which fails
+    on Windows and POSIX alike — unlike a hardcoded POSIX path such as
+    /proc/..., which Windows would happily create as C:\\proc\\...
+    """
     token = login(client, pwd="operator-pass-1")["token"]
+    blocker = tmp_path / "not-a-folder.txt"
+    blocker.write_text("this is a file, not a directory")
+
     r = client.put("/api/system/watch-folder", headers=hdr(token),
-                   json={"path": "/proc/nonexistent/cannot-create"})
+                   json={"path": str(blocker / "watch")})
     assert r.status_code == 400
     assert "cannot use that folder" in r.json()["detail"].lower()
+
+    # the rejected path must not have displaced the working one
+    st = client.get("/api/system/jobs", headers=hdr(token)).json()
+    assert Path(st["watch_folder"]).is_dir()
 
 
 def test_reset_watch_folder_to_default(client):
@@ -187,7 +200,7 @@ def test_watch_folder_change_is_audited_and_admin_only(client):
     assert any(e["field"] == "watch_folder" for e in log)
     analyst = login(client, "kwame", "analyst-own-1")["token"]
     assert client.put("/api/system/watch-folder", headers=hdr(analyst),
-                      json={"path": "/tmp"}).status_code == 403
+                      json={"path": str(Path(DATA) / "nope")}).status_code == 403
 
 
 # ------------------------------------------------ interface scale
