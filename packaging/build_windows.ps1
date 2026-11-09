@@ -233,6 +233,38 @@ $ExePath = if ($OneFile) { Join-Path $DistDir 'VMTracker.exe' }
            else          { Join-Path $DistDir 'VMTracker\VMTracker.exe' }
 if (-not (Test-Path $ExePath)) { Die "PyInstaller reported success but $ExePath is missing." }
 
+# A double-clicked exe that fails leaves no trace, so ship something safer to
+# click: it keeps the window open and points at --diagnose when startup fails.
+if (-not $OneFile) {
+    $launcher = @'
+@echo off
+REM Starts VM Tracker and keeps this window open so you can read any message.
+REM Keep this file inside the VMTracker folder, beside VMTracker.exe.
+cd /d "%~dp0"
+if not exist "VMTracker.exe" (
+  echo VMTracker.exe is not in this folder.
+  echo Keep the whole VMTracker folder together - the exe cannot run on its own.
+  pause
+  exit /b 1
+)
+echo Starting VM Tracker...  the console opens at http://localhost:9797/
+echo.
+VMTracker.exe %*
+set RC=%ERRORLEVEL%
+if not "%RC%"=="0" (
+  echo.
+  echo VM Tracker exited with code %RC%.
+  echo For a full report of what is wrong, run:  VMTracker.exe --diagnose
+)
+echo.
+pause
+exit /b %RC%
+'@
+    $launcherPath = Join-Path $DistDir 'VMTracker\Start VM Tracker.bat'
+    Set-Content -Path $launcherPath -Value $launcher -Encoding ASCII
+    Info 'added "Start VM Tracker.bat" to the build'
+}
+
 $sizeMb = if ($OneFile) {
     [math]::Round((Get-Item $ExePath).Length / 1MB, 1)
 } else {
@@ -327,11 +359,22 @@ Write-Host "  Build complete in ${elapsed}s" -ForegroundColor Green
 Write-Host ''
 Write-Host "  Executable : $ExePath"
 if (-not $OneFile) {
-    Write-Host "  Ship        : the whole dist\VMTracker folder, not the exe alone"
+    Write-Host ''
+    Write-Host '  IMPORTANT: copy the WHOLE dist\VMTracker folder when you move this.' -ForegroundColor Yellow
+    Write-Host '  VMTracker.exe cannot run on its own - separated from the _internal' -ForegroundColor Yellow
+    Write-Host '  folder beside it, it fails instantly with no error message.' -ForegroundColor Yellow
+    Write-Host '  Need a single portable file? Rebuild with -OneFile.' -ForegroundColor Yellow
 }
 if ($IssPath) { Write-Host "  Installer  : $($IssPath.FullName)" }
 Write-Host ''
-Write-Host '  Run it      : ' -NoNewline; Write-Host $ExePath -ForegroundColor Cyan
+Write-Host ''
+if ($OneFile) {
+    Write-Host '  Run it      : ' -NoNewline; Write-Host $ExePath -ForegroundColor Cyan
+} else {
+    Write-Host '  Run it      : ' -NoNewline
+    Write-Host (Join-Path $DistDir 'VMTracker\Start VM Tracker.bat') -ForegroundColor Cyan
+}
+Write-Host '  If it fails : ' -NoNewline; Write-Host "$ExePath --diagnose" -ForegroundColor Cyan
 Write-Host '  Then open   : ' -NoNewline; Write-Host 'http://localhost:9797/' -ForegroundColor Cyan
 Write-Host '  Sign in     : admin / admin  (you will be made to change it)'
 Write-Host ''

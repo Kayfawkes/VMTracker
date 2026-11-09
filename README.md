@@ -29,7 +29,7 @@ evidence". Regenerate the samples any time with `python samples/gen_samples.py`.
 ## Tests
 
 ```bash
-python -m pytest tests -q                    # 101 tests
+python -m pytest tests -q                    # 111 tests
 python -m pytest tests -q -k "not test_ui"   # skip the browser tests
 ```
 
@@ -62,6 +62,7 @@ is applied. Filter sets can be saved and reloaded by name.
 | Override | `VM_TRACKER_DATA_DIR` (the literal `VM Tracker_DATA_DIR` is also honoured) |
 | Database | `<data dir>/vmtracker.db` (SQLite, WAL) |
 | Watch folder | `<data dir>/watch` by default; changeable in **Settings → Background jobs** |
+| Startup log | `<data dir>/logs/startup.log` (written when startup fails) |
 | Port / host | `9797` / `0.0.0.0` — override with `VM_TRACKER_PORT`, `VM_TRACKER_HOST` |
 | Admin password (first run) | `admin`, or set `VM_TRACKER_ADMIN_PASSWORD` |
 
@@ -244,11 +245,25 @@ With `-Installer` you also get `packaging\Output\VMTracker-Setup-0.9.0.exe`,
 which offers a desktop shortcut, a firewall rule for TCP 9797, and optional
 start-at-boot. Uninstalling leaves your data directory intact.
 
-Two things worth knowing. For the folder build, ship the **whole**
-`dist\VMTracker` folder — the exe alone will not run. And the binary is
-unsigned, so SmartScreen shows a "Windows protected your PC" prompt on first run;
-*More info → Run anyway*, or sign it with your organisation's code-signing
-certificate (`signtool sign /fd SHA256 /a dist\VMTracker\VMTracker.exe`).
+### If the exe does not run
+
+Start with `VMTracker.exe --diagnose` from a command prompt. It checks the data
+directory, the bundled web assets, every bundled dependency and the port, then
+lists what is wrong. Startup failures are also appended to
+`<data dir>\logs\startup.log`, which survives the window closing.
+
+The usual causes, in the order they bite:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Window flashes and vanishes, nothing else | `VMTracker.exe` was copied out of its folder | Copy the **whole** `dist\VMTracker` folder. The exe loads Python from the `_internal` folder beside it and dies in the bootloader without it — before any of the app's own error handling can report anything. Or rebuild with `-OneFile` for a single portable file. |
+| Exe is missing after the build, or deletion warnings | Antivirus / EDR quarantined it | Unsigned PyInstaller binaries are routinely flagged. Check the quarantine, add an exclusion for the install folder, or sign the binary. |
+| "Windows protected your PC" dialog | SmartScreen, because the binary is unsigned | *More info → Run anyway*, or sign it: `signtool sign /fd SHA256 /a dist\VMTracker\VMTracker.exe` |
+| Window opens, shows a message, closes | A real startup error | It is now held open and logged. `--diagnose` gives the detail. |
+| "Port 9797 is already in use" | It is already running, or something else has the port | Open <http://127.0.0.1:9797/>, or use `--port 9798`. |
+
+The folder build includes **`Start VM Tracker.bat`**. Use that rather than the exe
+for day-to-day starts: it keeps the window open so any message stays readable.
 
 **Building without a Windows machine.** `.github/workflows/build-windows.yml`
 builds and smoke-tests the exe on a GitHub-hosted Windows runner on every push;

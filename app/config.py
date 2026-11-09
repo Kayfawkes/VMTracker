@@ -34,15 +34,23 @@ def bundle_dir() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-def data_dir() -> Path:
+def data_dir_path() -> Path:
+    """Where the data directory should be, without trying to create it.
+
+    Error handlers need the intended location even when creating it is what
+    failed, so resolving and creating are kept apart.
+    """
     override = os.environ.get(_ENV_DATA_DIR) or os.environ.get(_ENV_DATA_DIR_LITERAL)
     if override:
-        p = Path(override).expanduser()
-    elif os.name == "nt":
+        return Path(override).expanduser()
+    if os.name == "nt":
         base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-        p = Path(base) / APP_NAME
-    else:
-        p = Path.home() / f".{APP_NAME}"
+        return Path(base) / APP_NAME
+    return Path.home() / f".{APP_NAME}"
+
+
+def data_dir() -> Path:
+    p = data_dir_path()
     p.mkdir(parents=True, exist_ok=True)
     return p
 
