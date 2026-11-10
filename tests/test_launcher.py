@@ -93,13 +93,47 @@ def test_port_already_in_use_is_reported_clearly():
 
 
 def test_port_in_use_helper():
+    """The check must answer 'can we bind here', identically on every platform."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as held:
         held.bind(("127.0.0.1", 0))
-        held.listen(1)
+        held.listen(5)
         port = held.getsockname()[1]
         assert run.port_in_use("127.0.0.1", port) is True
-        assert run.port_in_use("0.0.0.0", port) is True      # probes loopback
     assert run.port_in_use("127.0.0.1", port) is False
+
+
+def test_port_check_is_repeatable():
+    """Several calls must agree.
+
+    An earlier version probed with connect() and left the connection pending.
+    With a small listen() backlog the accept queue filled, and the next probe
+    was refused - True, then False, for a port that never changed. Windows
+    showed it; Linux's roomier backlog hid it.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as held:
+        held.bind(("127.0.0.1", 0))
+        held.listen(1)                       # the backlog that exposed the bug
+        port = held.getsockname()[1]
+        assert [run.port_in_use("127.0.0.1", port) for _ in range(4)] == [True] * 4
+
+
+def test_port_check_leaves_the_port_usable():
+    """A pre-flight check must not itself occupy the port it just cleared."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    assert run.port_in_use("127.0.0.1", port) is False
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", port))          # must still be bindable afterwards
+        s.listen(1)
+
+
+def test_wildcard_host_is_checked_as_given():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as held:
+        held.bind(("0.0.0.0", 0))
+        held.listen(5)
+        port = held.getsockname()[1]
+        assert run.port_in_use("0.0.0.0", port) is True
 
 
 def test_missing_web_assets_is_reported(monkeypatch, tmp_path):

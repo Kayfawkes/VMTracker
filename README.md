@@ -29,7 +29,7 @@ evidence". Regenerate the samples any time with `python samples/gen_samples.py`.
 ## Tests
 
 ```bash
-python -m pytest tests -q                    # 111 tests
+python -m pytest tests -q                    # 114 tests
 python -m pytest tests -q -k "not test_ui"   # skip the browser tests
 ```
 

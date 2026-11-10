@@ -66,10 +66,26 @@ def lan_ip() -> str:
 
 
 def port_in_use(host: str, port: int) -> bool:
-    probe_host = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.settimeout(0.6)
-        return s.connect_ex((probe_host, port)) == 0
+    """True when binding host:port would fail.
+
+    This asks the question that actually matters — "can the server bind here?"
+    — by attempting the same bind uvicorn will. Probing with connect() instead
+    answers a different question ("is something answering?") whose result
+    diverges between Windows and POSIX for wildcard addresses.
+
+    SO_REUSEADDR is deliberately not set: on Windows it permits two sockets to
+    hold one port, which would hide the very conflict being tested for.
+    """
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    bind_host = host if host not in ("", "*") else "0.0.0.0"
+    try:
+        with socket.socket(family, socket.SOCK_STREAM) as s:
+            s.bind((bind_host, port))
+        return False
+    except OSError:
+        return True
+    except Exception:
+        return False        # an address we cannot evaluate is not our problem
 
 
 def log_startup_failure(message: str) -> Path | None:
