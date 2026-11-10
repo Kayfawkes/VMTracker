@@ -220,7 +220,21 @@ packaging\build_windows.bat
 
 Double-clicking it works too. It needs only Python 3.11+ installed; everything
 else is fetched into a throwaway virtual environment under `build\.venv`, so
-nothing lands in your system Python. The script finds Python (via the `py`
+nothing lands in your system Python.
+
+**Which build do you want?**
+
+|  | Folder build (default) | `-OneFile` |
+|---|---|---|
+| What you get | `dist\VMTracker\` — exe plus an `_internal` folder | one self-contained `VMTracker.exe` |
+| Copying it somewhere | move the **whole folder**, or the `VMTracker-portable.zip` the build makes for you | copy the single file anywhere |
+| Startup | immediate | a few seconds while it unpacks to `%TEMP%`, more if antivirus scans it |
+| Best for | a server that stays running | handing someone a file, or running from a share |
+
+The folder build is the default because a long-running server should not unpack
+50 MB on every restart. **If you plan to copy the exe around, build `-OneFile`** —
+a bare `VMTracker.exe` taken out of its folder cannot start, for the reason in
+the troubleshooting table below. The script finds Python (via the `py`
 launcher or PATH), installs dependencies, runs the tests, builds the exe, then
 **starts the built exe and checks it actually serves the console** before
 declaring success. Output: `dist\VMTracker\VMTracker.exe`.

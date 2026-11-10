@@ -265,6 +265,19 @@ exit /b %RC%
     Info 'added "Start VM Tracker.bat" to the build'
 }
 
+# Package the folder build as a single zip. Copying one file moves everything,
+# which is the whole failure this guards against: an exe dragged out of its
+# folder dies in the PyInstaller bootloader before any code can report why.
+if (-not $OneFile) {
+    $zipPath = Join-Path $DistDir 'VMTracker-portable.zip'
+    try {
+        Compress-Archive -Path (Join-Path $DistDir 'VMTracker') -DestinationPath $zipPath -Force -ErrorAction Stop
+        Info "packaged $zipPath - copy this, not the bare exe"
+    } catch {
+        Warn "could not create the portable zip: $($_.Exception.Message)"
+    }
+}
+
 $sizeMb = if ($OneFile) {
     [math]::Round((Get-Item $ExePath).Length / 1MB, 1)
 } else {
@@ -359,11 +372,12 @@ Write-Host "  Build complete in ${elapsed}s" -ForegroundColor Green
 Write-Host ''
 Write-Host "  Executable : $ExePath"
 if (-not $OneFile) {
+    Write-Host "  Portable   : $(Join-Path $DistDir 'VMTracker-portable.zip')"
     Write-Host ''
-    Write-Host '  IMPORTANT: copy the WHOLE dist\VMTracker folder when you move this.' -ForegroundColor Yellow
-    Write-Host '  VMTracker.exe cannot run on its own - separated from the _internal' -ForegroundColor Yellow
-    Write-Host '  folder beside it, it fails instantly with no error message.' -ForegroundColor Yellow
-    Write-Host '  Need a single portable file? Rebuild with -OneFile.' -ForegroundColor Yellow
+    Write-Host '  IMPORTANT: move the WHOLE folder, or the zip above.' -ForegroundColor Yellow
+    Write-Host '  VMTracker.exe cannot run on its own. Separated from the _internal' -ForegroundColor Yellow
+    Write-Host '  folder beside it, it dies in the loader with no error message at all.' -ForegroundColor Yellow
+    Write-Host '  Want one self-contained file to copy around? Rebuild with -OneFile.' -ForegroundColor Yellow
 }
 if ($IssPath) { Write-Host "  Installer  : $($IssPath.FullName)" }
 Write-Host ''
